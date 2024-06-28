@@ -120,6 +120,10 @@ add_library(
 # Compile GFS_diagnostics.F90 without optimization, this leads to out of memory errors on wcoss_dell_p3
 set_property(SOURCE driver/GFS_diagnostics.F90 APPEND_STRING PROPERTY COMPILE_FLAGS "-O0")
 
+cmake_policy(SET CMP0079 NEW)
+find_package(w3emc REQUIRED)
+target_link_libraries(ccpp_physics PUBLIC w3emc::w3emc_d)
+
 target_link_libraries(fv3ccpp PUBLIC ccpp_framework)
 target_link_libraries(fv3ccpp PUBLIC ccpp_physics)
 
