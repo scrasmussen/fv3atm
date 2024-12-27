@@ -25,6 +25,23 @@ if (FV3)
 endif()
 
 #------------------------------------------------------------------------------
+# MPAS dynamical core
+#------------------------------------------------------------------------------
+if (MPAS)
+  message(STATUS "Build CCPP interface to MPAS dynamical core")
+  set(CCPP_TARGET mpasccpp)
+  set(CCPP_PREBUILD_CONFIG ../mpas/ccpp/config/ccpp_prebuild_config.py)
+  set(DYCORE_CCPP_SRCS
+        GFS_diagnostics.F90
+        GFS_restart.F90
+        GFS_init.F90
+	CCPP_driver.F90
+        )
+      list(TRANSFORM DYCORE_CCPP_SRCS PREPEND ../ccpp/driver/)
+  add_definitions(-DFV3)
+endif()
+
+#------------------------------------------------------------------------------
 # Set a default build type if none was specified
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     message(STATUS "Setting build type to 'Release' as none was specified.")

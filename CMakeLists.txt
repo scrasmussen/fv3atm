@@ -17,6 +17,9 @@ if(BUILD_TESTING)
   if (FV3)
     project(ufsatm_fv3 VERSION 1.0 LANGUAGES C CXX Fortran)
   endif()
+  if (MPAS)
+    project(ufsatm_mpas VERSION 1.0 LANGUAGES C CXX Fortran)
+  endif()
   include(ci/CMakeLists.txt)
 endif()
 
@@ -152,6 +155,44 @@ if (FV3)
                                    use_WRTCOMP)
 endif()
 
+###############################################################################
+### UFSATM with MPAS dynamical core.
+###############################################################################
+if (MPAS)
+  set(DYCORE_TARGET ${DYCORE_TARGET_MPAS})
+
+  # Include MPAS Cmake tools.
+  include(${CMAKE_CURRENT_SOURCE_DIR}/mpas/MPAS-Model/cmake/Functions/MPAS_Functions.cmake)
+
+  # Set any pre-processor directive needed in MPAS dycore.
+  get_mpas_version(MPAS_VERSION)
+  set(MPAS_ALL_CORES atmosphere)
+  set(MPAS_CORES atmosphere CACHE STRING "MPAS cores to build. Options: ${MPAS_ALL_CORES}")
+  if(MPAS_CORES MATCHES " ") #Convert strings separated with spaces to CMake list separated with ';'
+    string(REPLACE " " ";" MPAS_CORES ${MPAS_CORES})
+    set(MPAS_CORES ${MPAS_CORES} CACHE STRING "MPAS cores to build. Options: ${MPAS_ALL_CORES}" FORCE)
+  endif()
+  set(DO_MPASDA OFF)
+  set(DO_PHYSICS FALSE)
+
+  # Source files for MPAS dynamical core drivers.
+  set(MPAS_MAIN_SRC      ${CMAKE_CURRENT_SOURCE_DIR}/mpas/ufs_mpas.F90)
+  set(MPAS_SUBDRIVER_SRC ${CMAKE_CURRENT_SOURCE_DIR}/mpas/ufs_mpas_subdriver.F90)
+
+  # MPAS NUOPC cap.
+  set(MPAS_NUOPC_CAP     ${CMAKE_CURRENT_SOURCE_DIR}/mpas/mpas_cap.F90)
+
+  # MPAS dynamical core
+  add_subdirectory(mpas)
+
+  # MPAS drivers and dependencies
+  add_library(${DYCORE_TARGET}
+    ${MPAS_MAIN_SRC}
+    ${MPAS_SUBDRIVER_SRC}
+    ${MPAS_NUOPC_CAP}
+    )
+  add_dependencies(${DYCORE_TARGET} mpas)
+endif()
 
 ###############################################################################
 ### Link libraries
@@ -174,6 +215,12 @@ if (FV3)
   endif()
 endif()
 
+if (MPAS)
+  target_link_libraries(${DYCORE_TARGET} PUBLIC mpas)
+#                                       mpasccpp
+#  				       stochastic_physics
+# 				       fms)
+endif()
 
 
 # Always include EMC libraries in dycore install
