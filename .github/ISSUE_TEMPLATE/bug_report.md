@@ -24,7 +24,7 @@ Give explicit steps to reproduce the behavior.
 Add any other context about the problem here.
 Directly reference any issues or PRs in this or other repositories that this is related to, and describe how they are related. Example:
 - needs to be fixed also in noaa-emc/nems/issues/<issue_number>
-- needed for noaa-emc/fv3atm/pull/<pr_number>
+- needed for noaa-emc/ufsatm/pull/<pr_number>
 
 
 ## Output

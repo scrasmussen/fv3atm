@@ -1,4 +1,4 @@
-# This is the CMake file for building the docs directory of fv3atm.
+# This is the CMake file for building the docs directory of ufsatm.
 #
 # Ed Hartnett 12/28/23
 

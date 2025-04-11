@@ -1,6 +1,6 @@
-# This is a CI workflow for the fv3atm project.
+# This is a CI workflow for the ufsatm project.
 #
-# This workflow builds the fv3atm doxygen documentation.
+# This workflow builds the ufsatm doxygen documentation.
 #
 # Ed Hartnett, 1/9/25
 
@@ -24,10 +24,10 @@ jobs:
 
     steps:
         
-    - name: checkout-fv3atm
+    - name: checkout-ufsatm
       uses: actions/checkout@v4
       with:
-        path: ${{ github.workspace }}/fv3atm
+        path: ${{ github.workspace }}/ufsatm
         submodules: recursive
 
     - name: install-cmake
@@ -41,7 +41,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}/spack-develop
-        key: spack-${{ hashFiles('fv3atm/ci/spack.yaml') }}-gcc${{ matrix.gcc_ver }}-${{ matrix.mpi }}
+        key: spack-${{ hashFiles('ufsatm/ci/spack.yaml') }}-gcc${{ matrix.gcc_ver }}-${{ matrix.mpi }}
 
     # Building dependencies takes 40+ min
     - name: spack-install
@@ -50,7 +50,7 @@ jobs:
         wget --no-verbose https://github.com/spack/spack/archive/refs/heads/develop.zip
         unzip develop.zip -d ${GITHUB_WORKSPACE}/ &> unzip.out
         . ${GITHUB_WORKSPACE}/spack-develop/share/spack/setup-env.sh
-        spack env create gcc${{ matrix.gcc_ver }} ${GITHUB_WORKSPACE}/fv3atm/ci/spack.yaml
+        spack env create gcc${{ matrix.gcc_ver }} ${GITHUB_WORKSPACE}/ufsatm/ci/spack.yaml
         spack env activate gcc${{ matrix.gcc_ver }}
         spack compiler find | grep gcc@${{ matrix.gcc_ver }}
         spack external find gmake cmake git git-lfs perl python ${{ matrix.mpi }}
@@ -93,10 +93,10 @@ jobs:
         curl -f -s -S -R -L https://github.com/Kitware/CMake/releases/download/v3.29.2/cmake-3.29.2-Linux-x86_64.tar.gz | tar -zx
         echo "${{ github.workspace }}/cmake-3.29.2-linux-x86_64/bin" >> $GITHUB_PATH
 
-    - name: checkout-fv3atm
+    - name: checkout-ufsatm
       uses: actions/checkout@v4
       with:
-        path: ${{ github.workspace }}/fv3atm
+        path: ${{ github.workspace }}/ufsatm
         submodules: recursive
 
     - name: cache-spack
@@ -104,14 +104,14 @@ jobs:
       uses: actions/cache/restore@v4
       with:
         path: ${{ github.workspace }}/spack-develop
-        key: spack-${{ hashFiles('fv3atm/ci/spack.yaml') }}-gcc${{ matrix.gcc_ver }}-${{ matrix.mpi }}
+        key: spack-${{ hashFiles('ufsatm/ci/spack.yaml') }}-gcc${{ matrix.gcc_ver }}-${{ matrix.mpi }}
 
     - name: docs-build
       run: |
         . ${GITHUB_WORKSPACE}/spack-develop/share/spack/setup-env.sh
         spack env activate gcc${{ matrix.gcc_ver }}
         spack load $(spack find --format "{name}")
-        cd ${GITHUB_WORKSPACE}/fv3atm
+        cd ${GITHUB_WORKSPACE}/ufsatm
         git clone https://github.com/NOAA-EMC/CMakeModules
         git clone --recurse-submodules https://github.com/NOAA-PSL/stochastic_physics stochastic_physics_repo
         mkdir ${GITHUB_WORKSPACE}/build
@@ -119,14 +119,14 @@ jobs:
         export CC=mpicc
         export CXX=mpicxx
         export FC=mpif90
-        cmake ${GITHUB_WORKSPACE}/fv3atm -DBUILD_TESTING=ON ${{ matrix.cmake_opts }} -DENABLE_FV3ATM_DOCS=ON ${{ env.gcov_cmake }}
+        cmake ${GITHUB_WORKSPACE}/ufsatm -DBUILD_TESTING=ON ${{ matrix.cmake_opts }} -DENABLE_FV3ATM_DOCS=ON ${{ env.gcov_cmake }}
         make doxygen_doc
 
     - name: upload-docs
       uses: actions/upload-artifact@v4
       if: ${{ env.devbuild == 'ON' }}
       with:
-        name: docs-fv3atm
+        name: docs-ufsatm
         path: |
           build/docs/html
 

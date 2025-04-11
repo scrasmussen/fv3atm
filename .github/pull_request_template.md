@@ -12,7 +12,7 @@ Is a change of answers expected from this PR?
 Link the issues to be closed with this PR, whether in this repository, or in another repository.
 (Remember, issues should always be created before starting work on a PR branch!)
 - fixes #<issue_number>
-- fixes noaa-emc/fv3atm/issues/<issue_number>
+- fixes noaa-emc/ufsatm/issues/<issue_number>
 
 
 
@@ -34,5 +34,5 @@ Those branches should have matching names (ideally)
 Do PRs in upstream repositories need to be merged first?
 If so add the "waiting for other repos" label and list the upstream PRs
 - waiting on noaa-emc/nems/pull/<pr_number>
-- waiting on noaa-emc/fv3atm/pull/<pr_number>
+- waiting on noaa-emc/ufsatm/pull/<pr_number>
 

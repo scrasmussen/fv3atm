@@ -1,5 +1,5 @@
 
-# fv3atm
+# ufsatm
 
 This repository contains a driver and key subcomponents of the
 atmospheric component of the NOAA's [Unified Forecast System
@@ -41,13 +41,13 @@ This package also requires the following external packages:
  - [ESMF](https://github.com/esmf-org/esmf)
  - [GFDL's Flexible Modeling System](https://github.com/NOAA-GFDL/FMS)
 
-## Obtaining fv3atm
+## Obtaining ufsatm
 
-To obtain fv3atm, clone the git repository, and update the submodules:
+To obtain ufsatm, clone the git repository, and update the submodules:
 
 ```
-git clone https://github.com/NOAA-EMC/fv3atm.git
-cd fv3atm
+git clone https://github.com/NOAA-EMC/ufsatm.git
+cd ufsatm
 git submodule update --init --recursive
 ```
 

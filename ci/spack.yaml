@@ -1,4 +1,4 @@
-# This file is used in the CI to define the libraries needed to build fv3atm. It
+# This file is used in the CI to define the libraries needed to build ufsatm. It
 # is used by the 'spack env create' command to generate a Spack environment. It
 # is generally preferred to avoid defining settings here that are not shared
 # across CI workflows, such as requiring the use of a specific compiler. Any
