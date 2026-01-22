@@ -44,6 +44,8 @@ module atmos_model_mod
 #ifdef _OPENMP
   use omp_lib
 #endif
+  ! to remove
+  use ufs_mpas_subdriver, only : MPAS_control_type
   implicit none
 
   private
@@ -55,6 +57,9 @@ module atmos_model_mod
   public :: atmos_model_microphysics
   public :: atmos_model_dynamics
   public :: update_atmos_model_state
+  public :: atmos_model_write
+
+  type(MPAS_control_type) :: global_cfg
 
   !> #########################################################################################
   !> Type containing information on MPAS enabled UFSATM forecast.
@@ -64,15 +69,15 @@ module atmos_model_mod
      type(time_type)  :: Time       ! current time
      type(time_type)  :: Time_step  ! atmospheric time step.
      type(time_type)  :: Time_init  ! reference time.
-     logical          :: isAtCapTime ! true if currTime is at the cap driverClock's currTime 
+     logical          :: isAtCapTime ! true if currTime is at the cap driverClock's currTime
      integer          :: nblks      ! Number of physics blocks.
   end type atmos_control_type
-  
+
   ! Index map between MPAS tracers and UFS constituents
   integer, dimension(:), pointer :: mpas_from_ufs_cnst => null() ! indices into UFS constituent array
   ! Index map between UFS tracers and MPAS constituents
-  integer, dimension(:), pointer :: ufs_from_mpas_cnst => null() ! indices into MPAS tracers array  
-  
+  integer, dimension(:), pointer :: ufs_from_mpas_cnst => null() ! indices into MPAS tracers array
+
   ! Namelist
   integer :: blocksize    = 1
   logical :: dycore_only  = .false.
@@ -116,13 +121,13 @@ contains
     type(atmos_control_type), intent(inout) :: Atmos
     type(time_type),          intent(in   ) :: Time_init, Time, Time_step, Time_end
     type(MPI_Comm),           intent(in   ) :: mpicomm
-    character(17),            intent(in   ) :: calendar 
+    character(17),            intent(in   ) :: calendar
 
     ! Locals
     integer :: i, io, ierr, nConstituents, sec, iCol
     type(MPAS_control_type) :: Cfg
     integer :: times(6), timee(6), ttime, logUnits(2), nthrds
-    
+
     ! Set up timers
     setupClock = mpp_clock_id( 'Time-Step Setup       ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
     atmiClock  = mpp_clock_id( 'ATMosphere Setup      ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
@@ -139,20 +144,20 @@ contains
     Atmos % Time_init = Time_init
     Atmos % Time      = Time
     Atmos % Time_step = Time_step
-    
+
     call get_time (Atmos % Time_step, sec)
     Cfg%dt_phys   = real(sec)
-    
+
     ! Get forecast start/stop times (year/month/day/hour/minute/second)
     call get_date(Time_init,times(1),times(2),times(3),times(4),times(5),times(6))
     call get_date(Time_end, timee(1),timee(2),timee(3),timee(4),timee(5),timee(6))
     call get_time(Time_end - Time_init, ttime)
-    
+
     ! Set MPI bookeeping parameters.
     Cfg%me        = mpp_pe()
     Cfg%master    = mpp_root_pe()
     Cfg%mpi_comm  = mpicomm
-    
+
     ! Read in ATMosphere namelist.
     if (file_exists('input.nml')) then
        read(input_nml_file, nml=atmos_model_nml, iostat=io)
@@ -181,7 +186,7 @@ contains
     ! A more robust solution IMO would be to quiery the field table entries for a "water-species"
     ! attribute, or something along those lines. Actually, I think this is straightforward if we
     ! extend ../ufsatm_util.F90.
-    
+
     !
     ! From field_tables:
     ! For RRFS   MPAS we have: 11 water tracers (ql,qc,qi,qr,qs,qg,nc,nc,ni,nr,ng)
@@ -242,7 +247,7 @@ contains
 #endif
     ! Set file ID for log file
     Cfg%nlunit = stdlog()
-    
+
     ! Number of physics blocks
     Atmos % nblks = nCellsSolve / blocksize
     if (mod(nCellsSolve, blocksize) .gt. 0) Atmos % nblks = Atmos % nblks + 1
@@ -254,7 +259,7 @@ contains
     Cfg % blksz(Atmos % nblks) = nCellsSolve - (Atmos % nblks - 1)*blocksize
 
     allocate(UFSATM_interstitial(nthrds+1))
-    
+
     ! Update time (UFS specific time formatting array)
     Cfg%bdat(:) = 0
     call get_date (Time_init, Cfg%bdat(1), Cfg%bdat(2), Cfg%bdat(3), Cfg%bdat(5), Cfg%bdat(6), Cfg%bdat(7))
@@ -269,7 +274,7 @@ contains
     ! Read in physics namelist and allocate data containers.
     call MPAS_initialize(UFSATM_control, UFSATM_intdiag, UFSATM_grid, UFSATM_tbd, UFSATM_sfcprop, &
          UFSATM_statein, UFSATM_cldprop, UFSATM_radtend, UFSATM_coupling, Cfg)
-    
+
     call ufs_mpas_grid_to_physics(UFSATM_grid)
 
     ! Populate UFSATM data containers with MPAS "input" stream. We need to do this becuase
@@ -297,9 +302,10 @@ contains
 
     ! Initialize three-dimensional physics.
     ! NOT YET IMPLEMENTED
-    
+
     call mpp_clock_end(atmiClock)
     !
+    global_cfg = cfg
   end subroutine atmos_model_init
 
   !> #########################################################################################
@@ -342,7 +348,7 @@ contains
        ! that we will need to identify as being FV3/MPAS specifc. Mostly in the Typedefs I suspect,
        ! but there may be interstitial schemes (NOTE that I added an new MPAS specific interstital file
        ! already, GFS_rad_time_vary.mpas.F90. I don't think it is complete.
-       ! 
+       !
        !call CCPP_step (step="radiation", nblks=Atmos % nblks, ierr=ierr, dycore='mpas')
        if (ierr/=0)  call mpp_error(FATAL, 'Call to CCPP radiation step failed')
     endif
@@ -365,18 +371,18 @@ contains
     use ufs_mpas_subdriver, only : ufs_mpas_run
     use atmos_coupling_mod, only : ufs_microphysics_to_mpas
     use MPAS_init,          only : MPAS_initialize
-    
+
     type (atmos_control_type), intent(inout) :: Atmos
 
     ! Prepare MPAS dycore inputs with CCPP physics outputs.
     ! NOT YET IMPLEMENTED
     call ufs_microphysics_to_mpas(UFSATM_stateout)
-    
+
     ! Call MPAS dycore
     call mpp_clock_begin(mpasClock)
     call ufs_mpas_run()
     call mpp_clock_end(mpasClock)
-    
+
   end subroutine atmos_model_dynamics
 
   !> #########################################################################################
@@ -418,5 +424,63 @@ contains
     ! Advance time
     Atmos % Time = Atmos % Time + Atmos % Time_step
   end subroutine update_atmos_model_state
-  
+
+  subroutine atmos_model_write(atmos)
+    use mpas_derived_types, only : mpas_clock_type, MPAS_IO_READ, MPAS_IO_WRITE
+    use pio!, only: file_desc_t, pio_createfile
+    use ufs_mpas_module, only : dyn_mpas_read_write_stream, &
+         domain => domain_ptr
+    type (atmos_control_type), intent(inout) :: Atmos
+
+    ! local test vars
+    type (mpas_clock_type) :: clock
+    character(128) :: stream_mode
+    character(128) :: stream_name
+    type(file_desc_t), pointer :: pio_file_desc
+    integer :: timeLevel
+    ! character (len=128), optional :: when
+    ! integer :: whence
+    ! character (len=128), intent(out), optional :: actualWhen
+    integer :: ierr
+    integer :: rank, root_rank
+    ! pio variables
+    integer :: pio_iotype, pio_mode
+    character(len=*), parameter :: filename = "foo.nc"
+
+
+
+    rank = global_cfg%me
+    root_rank = global_cfg%master
+    ! Cfg%mpi_comm
+
+
+    ! use this!
+    ! domain % ioContext ! pio iocontext
+
+
+    allocate(pio_file_desc)
+    ! ierr = pio_createfile(iosys, pio_file_desc, iotype, 'foo.nc')
+    ! if doesn't exit
+    pio_iotype = PIO_iotype_netcdf
+    pio_mode = PIO_clobber
+    ierr = PIO_createfile(domain % ioContext % pio_iosystem, &
+         pio_file_desc, pio_iotype, trim(filename), pio_mode)
+    ! else
+    !   pio_openfile
+    ! end if
+
+    ! successfully runs to hear
+    ! stop "pio_createfile worked, pre-read-write-stream"
+
+    ! Creates a new PIO file handle for the output file.
+    ! Call dyn_mpas_read_write_stream for the MPAS stream(s)
+    ! dyn_mpas_read_write_stream()
+    call dyn_mpas_read_write_stream(clock, stream_mode, stream_name, &
+         pio_file_desc, timeLevel, ierr=ierr)
+    ! Close PIO file
+
+    stop "end atmos_model_write"
+  end subroutine atmos_model_write
+
+
 end module atmos_model_mod

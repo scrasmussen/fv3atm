@@ -18,6 +18,7 @@ module module_fcst_grid_comp
   use atmos_model_mod,    only: atmos_model_init, atmos_model_end, atmos_control_type
   use atmos_model_mod,    only: atmos_model_radiation_physics, atmos_model_dynamics,        &
                                 atmos_model_microphysics, update_atmos_model_state
+  use atmos_model_mod,    only: atmos_model_write
   use constants_mod,      only: constants_init
   use fms_mod,            only: error_mesg, fms_init, fms_end, write_version_number,        &
                                 uppercase
@@ -86,9 +87,9 @@ contains
     call ESMF_GridCompSetEntryPoint(fcst_comp, ESMF_METHOD_FINALIZE, &
                                     userRoutine=fcst_finalize, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
-    
+
   end subroutine SetServices
-  
+
   ! #########################################################################################
   ! Initialize the ESMF forecast grid component.
   ! #########################################################################################
@@ -111,10 +112,10 @@ contains
 
     ! Initialize ESMF error message.
     rc = ESMF_SUCCESS
-    
+
     ! Timing info (debug mode)
     tbeg1 = mpi_wtime()
-    
+
     call ESMF_VMGetCurrent(vm=vm,rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
 
@@ -253,7 +254,7 @@ contains
 
     ! Timing info (debug mode)
     if (mype == 0) write(*,*)'PASS(fcst_initialize): Time is ', mpi_wtime() - tbeg1
-   
+
   end subroutine fcst_initialize
 
   ! ###########################################################################################
@@ -269,7 +270,7 @@ contains
     rc = ESMF_SUCCESS
 
   end subroutine fcst_advertise
-  
+
   ! ###########################################################################################
   ! Realize the ESMF forecast grid component.
   ! ###########################################################################################
@@ -283,7 +284,7 @@ contains
     rc = ESMF_SUCCESS
 
   end subroutine fcst_realize
-  
+
   ! ###########################################################################################
   ! Run phase(1) for the ESMF forecast grid component.
   ! ###########################################################################################
@@ -299,16 +300,16 @@ contains
     logical,save        :: first=.true.
     integer,save        :: dt_cap=0
     type(ESMF_Time)     :: currTime,stopTime
-    
+
     ! Timing info.
     tbeg1 = mpi_wtime()
 
     ! Initialize ESMF error message.
     rc = ESMF_SUCCESS
-    
+
     call get_time(Atmos%Time - Atmos%Time_init, seconds)
     n_atmsteps = seconds/dt_atmos
-    
+
     if (first) then
        call ESMF_ClockGet(clock, currTime=currTime, stopTime=stopTime, rc=rc)
        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
@@ -318,18 +319,19 @@ contains
 
        first=.false.
     endif
-    
+
     if ( dt_cap > 0 .and. mod(seconds, dt_cap) == 0 ) then
        Atmos%isAtCapTime = .true.
     else
        Atmos%isAtCapTime = .false.
     endif
-    
+
     ! Call forecast integration subroutines...
     call atmos_model_radiation_physics (Atmos)
     call atmos_model_dynamics (Atmos)
     call atmos_model_microphysics (Atmos)
     !call update_atmos_model_state(Atmos)
+    call atmos_model_write(Atmos)
 
     ! Timing info (debug mode)
     if (mype == 0) write(*,'(A,I16,A,F16.6)')'PASS(fcstRUN phase 1), n_atmsteps = ', &
@@ -390,7 +392,7 @@ contains
           return
        endif
     enddo
-    
+
     if (mype == 0) write(*,'(A,I16,A,F16.6)')'PASS: fcstRUN phase 2, n_atmsteps = ', &
                                               n_atmsteps,' time is ',mpi_wtime()-tbeg1
 
@@ -412,13 +414,13 @@ contains
 
      ! Timing info (debug mode)
     tbeg1 = mpi_wtime()
-    
+
     call atmos_model_end (Atmos)
     call diag_manager_end (Atmos%Time)
     call fms_end
 
     ! Timing info (debug mode)
     if (mype == 0) write(*,*)'PASS(fcst_finalize): total is ', mpi_wtime() - tbeg1
-    
+
   end subroutine fcst_finalize
 end module  module_fcst_grid_comp
