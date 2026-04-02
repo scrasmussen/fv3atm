@@ -8,12 +8,16 @@
   branch = develop
 [submodule "ccpp/physics"]
   path = ccpp/physics
-  url = https://github.com/ufs-community/ccpp-physics
-  branch = ufs/dev
+  # url = https://github.com/ufs-community/ccpp-physics
+  # branch = ufs/dev
+  url = https://github.com/scrasmussen/ccpp-physics
+  branch = fix/sp-to-ip-build
 [submodule "upp"]
   path = upp
-  url = https://github.com/NOAA-EMC/UPP
-  branch = develop
+  # url = https://github.com/NOAA-EMC/UPP
+  # branch = develop
+  url = https://github.com/scrasmussen/UPP
+  branch = fix/ifx-build
 [submodule "mpas/MPAS-Model"]
   path = mpas/MPAS-Model
   url = https://github.com/ufs-community/MPAS-Model.git

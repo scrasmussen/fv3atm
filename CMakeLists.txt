@@ -299,11 +299,28 @@ if (MPAS)
 					 fms)
 endif()
 
-# Always include EMC libraries in dycore install
+if(TARGET bacio::bacio)
+  set(BACIO_TARGET bacio::bacio)
+elseif(TARGET bacio::bacio_4)
+  set(BACIO_TARGET bacio::bacio_4)
+else()
+  message(FATAL_ERROR
+    "bacio found but expected target not exported (bacio::bacio or bacio::bacio_4)")
+endif()
+if(TARGET ip::ip_d)
+  set(IP_TARGET ip::ip_d)
+elseif()
+  set(IP_TARGET sp::sp_d)
+else()
+  message(FATAL_ERROR
+    "ip or sp not found and expected target not exported (ip::ip_d or sp::sp_d)")
+endif()
+
 target_link_libraries(${DYCORE_TARGET} PUBLIC w3emc::w3emc_d
-                                              sp::sp_d
-                                              bacio::bacio_4
+                                              ${IP_TARGET}
+                                              ${BACIO_TARGET}
                                               ESMF::ESMF)
+
 
 # OpenMP
 if(OPENMP)
