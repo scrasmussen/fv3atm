@@ -364,6 +364,7 @@ contains
     use mpas_attlist,               only : mpas_modify_att
     use mpas_string_utils,          only : mpas_string_replace
     use mpas_field_routines,        only : mpas_allocate_scratch_field
+    use mpas_stochastic_physics,    only : stochastic_physics_pattern_init, dosppt
     ! Arguments
     type(mpas_control_type), intent(inout) :: Cfg
     type(mpas_pool_type), pointer :: tend_physics_pool
@@ -525,6 +526,15 @@ contains
     !
     call mpas_log_write('Initializing the dynamics')
     call mpas_atm_dynamics_init(domain_ptr)
+
+    ! init stochastic pattern generation
+    if (dosppt(domain_ptr)) then
+       call stochastic_physics_pattern_init(domain_ptr, ierr)
+       if (ierr /= 0) then
+          call mpas_log_write('Failed stochastic_physics_pattern_init call')
+          return
+       end if
+    endif
 
     call mpas_log_write('Successful initialization of MPAS dynamical core')
 

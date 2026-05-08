@@ -251,7 +251,10 @@ if (MPAS)
     ccpp/data/MPAS_typedefs.F90
     ccpp/driver/MPAS_init.F90
     )
-  add_dependencies(${DYCORE_TARGET} mpas mpasccpp)
+  add_dependencies(${DYCORE_TARGET} mpas mpasccpp stochastic_physics)
+  target_include_directories(${DYCORE_TARGET} PRIVATE
+    ${CMAKE_BINARY_DIR}/stochastic_physics/mod
+  )
 
   if(NOT MPAS_GIT_VERSION)
     find_package(Git QUIET)
@@ -278,8 +281,10 @@ endif()
 target_compile_definitions(${DYCORE_TARGET} PRIVATE "${_ufsatm_defs_private}")
 
 set_target_properties(${DYCORE_TARGET} PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/mod)
-target_include_directories(${DYCORE_TARGET} INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/mod>
-                                                      $<INSTALL_INTERFACE:mod>)
+target_include_directories(${DYCORE_TARGET} INTERFACE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/mod>
+  $<INSTALL_INTERFACE:mod>
+)
 # link target
 if (FV3)
   target_link_libraries(${DYCORE_TARGET} PUBLIC fv3
@@ -300,6 +305,7 @@ endif()
 if (MPAS)
   target_link_libraries(${DYCORE_TARGET} PUBLIC mpas
                                          mpasccpp
+                                         stochastic_physics
 					 fms)
 endif()
 
