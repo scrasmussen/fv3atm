@@ -6,7 +6,7 @@
 module atmos_coupling_mod
   use mpas_kind_types, only : mpas_kind => RKIND
   use ufs_mpas_io,     only : domain_ptr
-  
+
   implicit none
   public :: MPAS_statein_type
   public :: MPAS_stateout_type
@@ -67,7 +67,7 @@ module atmos_coupling_mod
      real(mpas_kind), pointer :: rho_zz(:,:)      ! Dry density [kg/m^3]
                                                   ! divided by d(zeta)/dz            (nlev ,ncol)
      real(mpas_kind), pointer :: tracers(:,:,:)   ! Tracers [kg/kg dry air]       (nq,nlev ,ncol)
-     
+
      ! State that may be directly derived from dycore prognostic state
      real(mpas_kind), pointer :: theta(:,:)       ! Potential temperature [K]        (nlev,ncol)
      real(mpas_kind), pointer :: exner(:,:)       ! Exner function [-]               (nlev,ncol)
@@ -105,7 +105,7 @@ module atmos_coupling_mod
      integer, pointer :: nCellsSolve              ! Number of cells, excluding halo cells
      integer, pointer :: nEdgesSolve              ! Number of edges, excluding halo edges
      integer, pointer :: nVerticesSolve           ! Number of vertices, excluding halo vertices
-     
+
      ! MPAS vertical coordiante (invariant)
      real(mpas_kind), pointer :: zgrid(:,:)       ! Geometric height [m]  at layer interfaces (nlev+1,ncol)
      real(mpas_kind), pointer :: zz(:,:)          ! Vertical coordinate metric [1] at layer
@@ -117,7 +117,7 @@ module atmos_coupling_mod
 
      ! Indices for tracer (scalar) indices
      integer, pointer  :: index_qv                ! Tracer index for water-vapor mixing-ratio
-     
+
      ! State that is directly prognosed by the dycore
      real(mpas_kind), pointer :: uperp(:,:)       ! Normal velocity at edges [m/s]  (nlev  ,nedge)
      real(mpas_kind), pointer :: w(:,:)           ! Vertical velocity [m/s]         (nlev+1,ncol)
@@ -147,7 +147,7 @@ module atmos_coupling_mod
      real(mpas_kind), pointer :: surface_pressure(:)
 
   end type MPAS_stateout_type
-  
+
 contains
   !> #########################################################################################
   !> Procedure to convert input "MPAS" variables to "CCPP" variables.
@@ -202,7 +202,7 @@ contains
     call mpas_pool_get_dimension(state_pool, 'index_qv',    index_qv)
     call mpas_pool_get_dimension(state_pool, 'moist_end',   nwat)
     call mpas_pool_get_dimension(mesh_pool,  'nVertLevels', nVertLevels)
-    
+
     ! Grab fields from MPAS pools
     call mpas_pool_get_array(diag_pool,  'theta',                  MPAS_state % theta)
     call mpas_pool_get_array(diag_pool,  'uReconstructZonal',      MPAS_state % ux)
@@ -292,14 +292,16 @@ contains
   !> will use tendencies from the CCPP Physics.
   !>
   !> #########################################################################################
-  subroutine ufs_physics_to_mpas(radiation)
-    use GFS_typedefs,       only : GFS_radtend_type
+  subroutine ufs_physics_to_mpas(radiation, diag, control)
+    use GFS_typedefs,       only : GFS_radtend_type, GFS_diag_type, GFS_control_type
     use mpas_derived_types, only : mpas_pool_type
     use mpas_pool_routines, only : mpas_pool_get_subpool, mpas_pool_get_array, mpas_pool_get_dimension
     use mpas_kind_types,    only : RKIND
     use mpas_constants,     only : rv, rgas
     ! Arguments
     type(GFS_radtend_type), intent(in) :: radiation
+    type(GFS_diag_type), intent(in)    :: diag
+    type(GFS_control_type), intent(in) :: control
 
     ! Locals
     type(mpas_pool_type),               pointer :: state_pool
@@ -316,6 +318,9 @@ contains
     integer, pointer :: nThreads, cellSolveThreadStart(:), cellSolveThreadEnd(:)
     integer :: iCol,iLay,ithread
     real(kind=RKIND):: coeff
+    ! Locals for Stochastic physics
+    type(mpas_pool_type), pointer :: tend_physics_pool
+    real(kind=RKIND), pointer     :: tend_array(:,:)
 
     ! Get openMP information
     call mpas_pool_get_dimension(domain_ptr % blocklist % dimensions,  'nThreads',             nThreads)
@@ -378,7 +383,7 @@ contains
           end do
        end do
     end do
- 
+
     ! Update MPAS state tendencies
     call mpas_pool_get_array(tend_pool, 'theta_m', tend_theta_dyn)
     do ithread = 1,nThreads
@@ -388,6 +393,36 @@ contains
           end do
        end do
     end do
+
+    ! Update tendencies used by stochastic physics
+    call mpas_pool_get_subpool(domain_ptr % blocklist % structs, &
+         'tend_physics', tend_physics_pool)
+    ! - rucuten
+    call mpas_pool_get_array(tend_physics_pool, 'rucuten', tend_array)
+    tend_array(:,:) = &
+         diag%dtend(:,:,control%dtidx(control%index_of_x_wind, &
+           control%index_of_process_dcnv)) + &
+         diag%dtend(:,:,control%dtidx(control%index_of_x_wind, &
+           control%index_of_process_scnv))
+    ! - rvcuten
+    call mpas_pool_get_array(tend_physics_pool, 'rvcuten', tend_array)
+    tend_array(:,:) = &
+         diag%dtend(:,:,control%dtidx(control%index_of_y_wind, &
+           control%index_of_process_dcnv)) + &
+         diag%dtend(:,:,control%dtidx(control%index_of_y_wind, &
+           control%index_of_process_scnv))
+    ! - rublten
+    call mpas_pool_get_array(tend_physics_pool, 'rublten', tend_array)
+    tend_array(:,:) = &
+         diag%dtend(:,:, control%dtidx(control%index_of_x_wind, control%index_of_process_pbl))
+    ! - rvblten
+    call mpas_pool_get_array(tend_physics_pool, 'rvblten', tend_array)
+    tend_array(:,:) = &
+         diag%dtend(:,:, control%dtidx(control%index_of_y_wind, control%index_of_process_pbl))
+
+    ! stochastic physics todo list
+    ! - [ ] tend_rtheta_physics
+    ! - [ ] tend_rho_physics
 
     ! Housekeeping
     deallocate(tend_th_phys)
@@ -473,7 +508,7 @@ contains
   !> #########################################################################################
   !> Procedure to convert of "MPAS" variables to "CCPP" variables.
   !> Called prior to CCPP Microphysics Group.
-  !> 
+  !>
   !> Analogous to microphysics_from_MPAS in src/core_atmosphere/physics/mpas_atmphys_interface.F
   !>
   !> This procedure accesses MPAS data using MPAS native procedures and stores the data
@@ -485,7 +520,7 @@ contains
     use GFS_typedefs,         only : GFS_statein_type
     ! Arguments
     type(GFS_statein_type),   intent(inout) :: physics_state
- 
+
   end subroutine ufs_mpas_to_microphysics
 
   !> #########################################################################################
@@ -501,9 +536,9 @@ contains
   !> DJS to GJF: We shouldn't need this once you port the MPAS_to_physics/MPAS_to_microphysics
   !> routines from MPAS.
   !>
-  !> ######################################################################################### 
+  !> #########################################################################################
   subroutine hydrostatic_pressure(nCells, nVertLevels, qsize, index_qv, zz, zgrid, rho_zz,   &
-       theta_m, exner, q, pmiddry, pintdry,pmid) 
+       theta_m, exner, q, pmiddry, pintdry,pmid)
     use mpas_constants,  only: cp, rgas, cv, gravity, p0, Rv_over_Rd => rvord
     use mpas_kind_types, only: RKIND
     ! Arguments
@@ -623,10 +658,10 @@ contains
     call mpas_pool_get_dimension(domain_ptr % blocklist % dimensions,  'nThreads',             nThreads)
     call mpas_pool_get_dimension(domain_ptr % blocklist % dimensions,  'cellSolveThreadStart', cellSolveThreadStart)
     call mpas_pool_get_dimension(domain_ptr % blocklist % dimensions,  'cellSolveThreadEnd',   cellSolveThreadEnd)
- 
+
     ! Access MPAS data pools.
     call mpas_pool_get_subpool(domain_ptr % blocklist % structs, 'mesh',  mesh_pool)
-    
+
     ! Get MPAS dimensions
     call mpas_pool_get_dimension(mesh_pool,  'nCellsSolve', nCellsSolve)
 
@@ -635,7 +670,7 @@ contains
     call mpas_pool_get_array(mesh_pool,  'lonCell',                lon)
     call mpas_pool_get_array(mesh_pool,  'areaCell',               area)
     call mpas_pool_get_array(mesh_pool,  'meshDensity',            meshDensity)
-    
+
     ! (from mpas_atm_core.F/atm_core_init Determine horizontal length scale used by horizontal diffusion and 3-d divergence damping
     nullify(nominalMinDc)
     call mpas_pool_get_array(mesh_pool, 'nominalMinDc', nominalMinDc)
@@ -667,7 +702,7 @@ contains
         ierr = 1
       end if
     end if
-    if (ierr/=0)  call mpp_error(FATAL, 'Call to ufs_mpas_grid_to_physics() failed')  
+    if (ierr/=0)  call mpp_error(FATAL, 'Call to ufs_mpas_grid_to_physics() failed')
 
     do ithread = 1,nThreads
        do i = cellSolveThreadStart(ithread),cellSolveThreadEnd(ithread)
@@ -682,7 +717,7 @@ contains
           physics_grid % dx(i)     = config_len_disp / meshDensity(i)**0.25
        end do
     end do
- 
+
   end subroutine ufs_mpas_grid_to_physics
 
   !> #########################################################################################
