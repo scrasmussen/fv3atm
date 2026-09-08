@@ -194,8 +194,15 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: gt0 (:,:)   => null()  !< updated temperature
     real (kind=kind_phys), pointer :: gq0 (:,:,:) => null()  !< updated tracers
 
+    !-- Persistent process-split tendencies passed from physics to the dycore
+    real (kind=kind_phys), pointer :: dudt (:,:)   => null()  !< zonal-wind tendency
+    real (kind=kind_phys), pointer :: dvdt (:,:)   => null()  !< meridional-wind tendency
+    real (kind=kind_phys), pointer :: dtdt (:,:)   => null()  !< temperature tendency
+    real (kind=kind_phys), pointer :: dqdt (:,:,:) => null()  !< tracer tendencies
+
     contains
-      procedure :: create  => stateout_create  !<   allocate array data
+      procedure :: create             => stateout_create              !< allocate array data
+      procedure :: reset_tendencies   => stateout_reset_tendencies    !< start a new physics tendency cycle
   end type GFS_stateout_type
 
 
@@ -2407,13 +2414,35 @@ module GFS_typedefs
     allocate (Stateout%gv0 (IM,Model%levs))
     allocate (Stateout%gt0 (IM,Model%levs))
     allocate (Stateout%gq0 (IM,Model%levs,Model%ntrac))
+    allocate (Stateout%dudt(IM,Model%levs))
+    allocate (Stateout%dvdt(IM,Model%levs))
+    allocate (Stateout%dtdt(IM,Model%levs))
+    allocate (Stateout%dqdt(IM,Model%levs,Model%ntrac))
 
     Stateout%gu0 = clear_val
     Stateout%gv0 = clear_val
     Stateout%gt0 = clear_val
     Stateout%gq0 = clear_val
+    call Stateout%reset_tendencies()
 
  end subroutine stateout_create
+
+
+!----------------------------------
+! GFS_stateout_type%reset_tendencies
+!----------------------------------
+  subroutine stateout_reset_tendencies (Stateout)
+
+    implicit none
+
+    class(GFS_stateout_type) :: Stateout
+
+    Stateout%dudt = 0.0_kind_phys
+    Stateout%dvdt = 0.0_kind_phys
+    Stateout%dtdt = 0.0_kind_phys
+    Stateout%dqdt = 0.0_kind_phys
+
+  end subroutine stateout_reset_tendencies
 
 
 !------------------------

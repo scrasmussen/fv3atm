@@ -93,20 +93,16 @@ module CCPP_typedefs
     real (kind=kind_phys), pointer      :: del_gz(:,:)        => null()  !<
     real (kind=kind_phys), pointer      :: delr(:,:)          => null()  !<
     real (kind=kind_phys), pointer      :: dlength(:)         => null()  !<
-    real (kind=kind_phys), pointer      :: dqdt(:,:,:)        => null()  !<
     real (kind=kind_phys), pointer      :: dqsfc1(:)          => null()  !<
     real (kind=kind_phys), pointer      :: drain(:)           => null()  !<
-    real (kind=kind_phys), pointer      :: dtdt(:,:)          => null()  !<
     real (kind=kind_phys), pointer      :: dtsfc1(:)          => null()  !<
     real (kind=kind_phys), pointer      :: dtzm(:)            => null()  !<
     real (kind=kind_phys), pointer      :: dt_mf(:,:)         => null()  !<
-    real (kind=kind_phys), pointer      :: dudt(:,:)          => null()  !<
     real (kind=kind_phys), pointer      :: dusfcg(:)          => null()  !<
     real (kind=kind_phys), pointer      :: dusfc1(:)          => null()  !<
     real (kind=kind_phys), pointer      :: dvdftra(:,:,:)     => null()  !<
     real (kind=kind_phys), pointer      :: ten_t_pbl(:,:)     => null()  !<
     real (kind=kind_phys), pointer      :: ten_q_pbl(:,:)     => null()  !<
-    real (kind=kind_phys), pointer      :: dvdt(:,:)          => null()  !<
     real (kind=kind_phys), pointer      :: dvsfcg(:)          => null()  !<
     real (kind=kind_phys), pointer      :: dvsfc1(:)          => null()  !<
     real (kind=kind_phys), pointer      :: dzlyr(:,:)         => null()  !<
@@ -550,17 +546,13 @@ contains
     allocate (Interstitial%del_gz          (ixs:ixe,Model%levs+1))
     allocate (Interstitial%delr            (ixs:ixe,Model%levr+LTP))
     allocate (Interstitial%dlength         (ixs:ixe))
-    allocate (Interstitial%dqdt            (ixs:ixe,Model%levs,Model%ntrac))
     allocate (Interstitial%dqsfc1          (ixs:ixe))
     allocate (Interstitial%drain           (ixs:ixe))
-    allocate (Interstitial%dtdt            (ixs:ixe,Model%levs))
     allocate (Interstitial%dtsfc1          (ixs:ixe))
     allocate (Interstitial%dt_mf           (ixs:ixe,Model%levs))
     allocate (Interstitial%dtzm            (ixs:ixe))
-    allocate (Interstitial%dudt            (ixs:ixe,Model%levs))
     allocate (Interstitial%dusfcg          (ixs:ixe))
     allocate (Interstitial%dusfc1          (ixs:ixe))
-    allocate (Interstitial%dvdt            (ixs:ixe,Model%levs))
     allocate (Interstitial%ten_t_pbl       (ixs:ixe,Model%levs))
     allocate (Interstitial%ten_q_pbl       (ixs:ixe,Model%levs))
     allocate (Interstitial%dvsfcg          (ixs:ixe))
@@ -906,17 +898,13 @@ contains
     deallocate (Interstitial%del_gz)
     deallocate (Interstitial%delr)
     deallocate (Interstitial%dlength)
-    deallocate (Interstitial%dqdt)
     deallocate (Interstitial%dqsfc1)
     deallocate (Interstitial%drain)
-    deallocate (Interstitial%dtdt)
     deallocate (Interstitial%dtsfc1)
     deallocate (Interstitial%dt_mf)
     deallocate (Interstitial%dtzm)
-    deallocate (Interstitial%dudt)
     deallocate (Interstitial%dusfcg)
     deallocate (Interstitial%dusfc1)
-    deallocate (Interstitial%dvdt)
     deallocate (Interstitial%dvsfcg)
     deallocate (Interstitial%dvsfc1)
     deallocate (Interstitial%dvdftra)
@@ -1462,17 +1450,13 @@ contains
     Interstitial%del_gz          = clear_val
     Interstitial%delr            = clear_val
     Interstitial%dlength         = clear_val
-    Interstitial%dqdt            = clear_val
     Interstitial%dqsfc1          = clear_val
     Interstitial%drain           = clear_val
-    Interstitial%dtdt            = clear_val
     Interstitial%dtsfc1          = clear_val
     Interstitial%dt_mf           = clear_val
     Interstitial%dtzm            = clear_val
-    Interstitial%dudt            = clear_val
     Interstitial%dusfcg          = clear_val
     Interstitial%dusfc1          = clear_val
-    Interstitial%dvdt            = clear_val
     Interstitial%dvsfcg          = clear_val
     Interstitial%dvsfc1          = clear_val
     Interstitial%dvdftra         = clear_val
@@ -2086,4 +2070,3 @@ contains
   end subroutine gfdl_interstitial_print
 
 end module CCPP_typedefs
-

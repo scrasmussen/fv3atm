@@ -260,6 +260,12 @@ contains
     Cfg%fn_nml = nml_filename
     call MPAS_initialize(UFSATM_control, UFSATM_intdiag, UFSATM_grid, UFSATM_tbd, UFSATM_sfcprop, &
          UFSATM_statein, UFSATM_stateout, UFSATM_cldprop, UFSATM_radtend, UFSATM_coupling, Cfg)
+
+    if (trim(ccpp_suite) == 'MPAS_GFS_ugwpv1' .and. UFSATM_control%tend_opt_gwd /= 2) then
+       call mpas_log_write(subname // &
+            ' ERROR: MPAS_GFS_ugwpv1 requires tend_opt_gwd=2 so GWD tendencies are accumulated for the MPAS dycore', &
+            messageType=MPAS_LOG_CRIT)
+    endif
     
     call ufs_mpas_grid_to_physics(UFSATM_grid)
 
@@ -368,6 +374,9 @@ contains
     ! Call CCPP Physics Group
     ! NOT YET IMPLEMENTED in SDF
     start_time = MPI_Wtime()
+    ! The cumulative arrays are persistent across CCPP_step. Start one new
+    ! accumulation cycle before invoking the process-split physics group.
+    call UFSATM_stateout%reset_tendencies()
     call CCPP_step (step="physics", nblks=Atmos % nblks, ierr=ierr, dycore='mpas')
     if (ierr/=0) call mpas_log_write(subname // " ERROR: Call to CCPP physics step failed",messageType=MPAS_LOG_CRIT)
     stop_time = MPI_Wtime()
