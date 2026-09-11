@@ -18,6 +18,7 @@ module atmos_coupling_mod
   public :: ufs_mpas_sfc_to_physics
   public :: ufs_mpas_landuse_update
   public :: ufs_mpas_gwd_to_physics
+  public :: ufs_mpas_reference_pressure
   
 contains
   !> #########################################################################################
@@ -941,6 +942,7 @@ contains
     type(mpas_pool_type), pointer :: mesh_pool, sfc_input
     integer :: i, ierr, iCol, ithread
     integer, pointer :: nThreads, cellSolveThreadStart(:), cellSolveThreadEnd(:), landmask(:)
+    integer, pointer :: ivgtyp(:)
     real(RKIND), pointer :: sst(:), snow(:), tmn(:), albbck(:)
     character(len=*), parameter :: subname = 'atmos_coupling::ufs_mpas_sfc_to_physics'
 
@@ -955,6 +957,7 @@ contains
 
     !using fv3atm_sfc_io.F90/Sfc_io_transfer() as a template; mpas_init_atm_static.F from MPAS-model for syntax
     call mpas_pool_get_array(sfc_input, 'landmask',  landmask)
+    call mpas_pool_get_array(sfc_input, 'ivgtyp',    ivgtyp)
     call mpas_pool_get_array(sfc_input, 'sst',       sst)
     call mpas_pool_get_array(sfc_input, 'snow',      snow)
     call mpas_pool_get_array(sfc_input, 'tmn' ,      tmn)
@@ -962,6 +965,9 @@ contains
     do ithread = 1,nThreads
        do iCol = cellSolveThreadStart(ithread),cellSolveThreadEnd(ithread)
           physics_sfcprop % slmsk(iCol) = landmask(iCol)
+          ! Vegetation type. Valid because the MPAS mesh uses
+          ! mminlu = MODIFIED_IGBP_MODIS_NOAH and the namelist sets ivegsrc = 1 (IGBP),
+          physics_sfcprop % vtype(iCol) = ivgtyp(iCol)
           physics_sfcprop % tsfco(iCol) = sst(iCol)
           physics_sfcprop % weasd(iCol) = snow(iCol)
           physics_sfcprop % tg3(iCol)   = tmn(iCol)
@@ -1063,10 +1069,14 @@ contains
           !      drag_suite_run doesn't use these...
           !      GFS_GWD_generic_pre sets them to zero, since mntvar(11:14) is initialized to zero.
           !      Not using GFS_GWD_generic_pre in UFS-MPAS, instead these are initializaed to zero elsewhere.
-          !surface % gamma(iCol) = 
-          !surface % sigma(iCol) = 
-          !surface % theta(iCol) = 
-          !surface % elvmax(iCol = 
+
+          ! UGWPv1 requires these fields, TODO: do the other options need them?
+          if (control%gwd_opt==2) then
+             surface % gamma(iCol) = 0.0
+             surface % sigma(iCol) = 0.0
+             surface % theta(iCol) = 0.0
+             surface % elvmax(iCol) = 0.0
+          end if
           if (control%gwd_opt==3 .or. control%gwd_opt==33 .or. &
               control%gwd_opt==2 .or. control%gwd_opt==22 ) then
              surface % hprime(iCol,1) = var2dls(iCol)
@@ -1094,6 +1104,102 @@ contains
     end do
 
   end subroutine ufs_mpas_gwd_to_physics
+
+  !> #########################################################################################
+  !> Build the dycore-neutral reference pressure profile that UGWPv1 expects in ak/bk.
+  !>
+  !> FV3 passes its hybrid sigma-pressure coefficients to control_initialize(); MPAS is on a
+  !> terrain-following height coordinate and has no such coefficients, so cires_ugwpv1_init
+  !> would otherwise dereference null pointers at cires_ugwpv1_module.F90:252:
+  !>
+  !>     pmb(k) = ak(k) + pref*bk(k)        ! pref = 1.e5
+  !>     zkm(k) = -hpskm*alog(pmb(k)/pref)
+  !>
+  !> Setting bk = 0 and ak = a reference layer pressure makes that evaluate pmb(k) = ak(k).
+  !> The reference used here is the global mean of the MPAS base-state pressure, which is
+  !> MPAS's own notion of a reference profile rather than an invented one.
+  !>
+  !> The mean is taken with a global reduction on purpose. pressure_base is (nVertLevels,
+  !> nCells) because the terrain-following coordinate makes the base state terrain-dependent,
+  !> so a per-rank mean or a single arbitrary column would change with the MPI decomposition
+  !> and break decomposition-independence. Terrain spread in layer height is under 2% above
+  !> 15 km, so the choice only perturbs UGWP's launch level by a level or two.
+  !>
+  !> Ordered surface -> TOA, matching both the MPAS bottom-up convention and the
+  !> "ak -pa bk-dimensionless from surf" comment in cires_ugwpv1_module.F90.
+  !> Called once, before MPAS_initialize().
+  !> #########################################################################################
+  subroutine ufs_mpas_reference_pressure(levs, ak, bk)
+    use mpas_derived_types,   only : mpas_pool_type
+    use mpas_derived_types,   only : MPAS_LOG_CRIT
+    use mpas_pool_routines,   only : mpas_pool_get_subpool, mpas_pool_get_dimension, mpas_pool_get_array
+    use mpas_dmpar,           only : mpas_dmpar_sum_real_array, mpas_dmpar_sum_int
+    use mpas_log,             only : mpas_log_write
+
+    ! Arguments
+    integer,          intent(in)  :: levs
+    real(kind=RKIND), intent(out) :: ak(levs+1)   !< reference pressure at layer centres (Pa)
+    real(kind=RKIND), intent(out) :: bk(levs+1)   !< zero; MPAS is not on a hybrid coordinate
+
+    ! Locals
+    type(mpas_pool_type), pointer :: mesh_pool, diag_pool
+    integer, pointer :: nCellsSolve, nVertLevels
+    real(kind=RKIND), pointer :: pressure_base(:,:)
+    real(kind=RKIND), allocatable :: localSum(:), globalSum(:)
+    integer :: iCol, iLay, nCellsGlobal
+    character(len=*), parameter :: subname = 'atmos_coupling::ufs_mpas_reference_pressure'
+
+    ! Access MPAS data pools
+    call mpas_pool_get_subpool(domain_ptr % blocklist % structs, 'mesh', mesh_pool)
+    call mpas_pool_get_subpool(domain_ptr % blocklist % structs, 'diag', diag_pool)
+    call mpas_pool_get_dimension(mesh_pool, 'nCellsSolve', nCellsSolve)
+    call mpas_pool_get_dimension(mesh_pool, 'nVertLevels', nVertLevels)
+    call mpas_pool_get_array(diag_pool, 'pressure_base', pressure_base)
+
+    if (nVertLevels /= levs) then
+       call mpas_log_write(subname // ' ERROR: nVertLevels does not match levs', &
+                           messageType=MPAS_LOG_CRIT)
+    end if
+    if (.not. associated(pressure_base)) then
+       call mpas_log_write(subname // ' ERROR: diag pressure_base is not associated; ' // &
+                           'MPAS base state must be initialized before this call', &
+                           messageType=MPAS_LOG_CRIT)
+    end if
+
+    allocate(localSum(levs), globalSum(levs))
+    localSum(:) = 0.0_RKIND
+
+    do iCol = 1, nCellsSolve
+       do iLay = 1, levs
+          localSum(iLay) = localSum(iLay) + pressure_base(iLay,iCol)
+       end do
+    end do
+
+    call mpas_dmpar_sum_real_array(domain_ptr % dminfo, levs, localSum, globalSum)
+    call mpas_dmpar_sum_int(domain_ptr % dminfo, nCellsSolve, nCellsGlobal)
+
+    if (nCellsGlobal <= 0) then
+       call mpas_log_write(subname // ' ERROR: global cell count is not positive', &
+                           messageType=MPAS_LOG_CRIT)
+    end if
+
+    ak(1:levs) = globalSum(1:levs) / real(nCellsGlobal, RKIND)
+    ! Model lid. cires_ugwpv1_module.F90:248 documents the top of the profile as zero
+    ! pressure; UGWPv1 reads only 1:levs, so this element exists to satisfy the ak(levs+1)
+    ! declaration in its interface.
+    ak(levs+1) = 0.0_RKIND
+    bk(:)      = 0.0_RKIND
+
+    call mpas_log_write(subname // ': MPAS reference pressure profile from base state, ' // &
+                        '$i global cells', intArgs=[nCellsGlobal])
+    call mpas_log_write(subname // ': surface ak = $r Pa, model-top layer ak = $r Pa', &
+                        realArgs=[ak(1), ak(levs)])
+
+    deallocate(localSum, globalSum)
+    nullify (mesh_pool)
+    nullify (diag_pool)
+
+  end subroutine ufs_mpas_reference_pressure
 
   !> #########################################################################################
   !> Procedure to populate MPAS diag_phys pool with CCPP data.

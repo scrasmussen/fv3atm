@@ -4696,10 +4696,6 @@ module GFS_typedefs
        Model%jsc              = jsc
        Model%nx               = nx
        Model%ny               = ny
-       allocate (Model%ak(1:size(ak)))
-       allocate (Model%bk(1:size(bk)))
-       Model%ak               = ak
-       Model%bk               = bk
        Model%cnx              = cnx
        Model%cny              = cny
        Model%lonr             = gnx         ! number longitudinal points
@@ -4709,6 +4705,18 @@ module GFS_typedefs
        Model%nx = sum(blksz)
        Model%ny = 1
     end if
+
+    !--- reference vertical pressure profile (dycore neutral)
+    !    FV3 supplies its hybrid sigma-pressure coefficients; MPAS supplies a reference
+    !    interface pressure with bk = 0 (see atmos_coupling::ufs_mpas_reference_pressure).
+    !    Consumers such as cires_ugwpv1_init evaluate pmb(k) = ak(k) + p0*bk(k), so they
+    !    need these associated under any dycore, not just FV3.
+    if (present(ak) .and. present(bk)) then
+       allocate (Model%ak(1:size(ak)))
+       allocate (Model%bk(1:size(bk)))
+       Model%ak               = ak
+       Model%bk               = bk
+    endif
     Model%levs             = levs
     Model%levsp1           = Model%levs + 1
     Model%levsm1           = Model%levs - 1

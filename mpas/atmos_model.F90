@@ -108,6 +108,7 @@ contains
     use ufs_mpas_io,            only : use_mpas_slopedata_read
     use atmos_coupling_mod,     only : ufs_mpas_to_physics, ufs_mpas_grid_to_physics, ufs_mpas_sfc_to_physics
     use atmos_coupling_mod,     only : ufs_mpas_landuse_update, ufs_mpas_gwd_to_physics
+    use atmos_coupling_mod,     only : ufs_mpas_reference_pressure
     use MPAS_init,              only : MPAS_initialize
 
     ! Arguments
@@ -271,6 +272,13 @@ contains
     call ESMF_TimeGet (StartTime, YY=Cfg%bdat(1),MM=Cfg%bdat(2),DD=Cfg%bdat(3),H=Cfg%bdat(5),M=Cfg%bdat(6),S=Cfg%bdat(7),rc=rc)
     Cfg%cdat(:) = 0
     call ESMF_TimeGet (CurrTime,  YY=Cfg%cdat(1),MM=Cfg%cdat(2),DD=Cfg%cdat(3),H=Cfg%cdat(5),M=Cfg%cdat(6),S=Cfg%cdat(7),rc=rc)
+
+    ! Reference vertical pressure profile for UGWPv1. Must be built before
+    ! MPAS_initialize(), which is where control_initialize() consumes ak/bk.
+    ! Safe here: the MPAS dycore init above has already populated the base state.
+    allocate(Cfg % ak(Cfg % levs + 1))
+    allocate(Cfg % bk(Cfg % levs + 1))
+    call ufs_mpas_reference_pressure(Cfg % levs, Cfg % ak, Cfg % bk)
 
     ! Read in physics namelist and allocate data containers.
     Cfg%fn_nml = nml_filename
@@ -512,7 +520,7 @@ contains
     is_water_species(:) = .false.
     open(newunit=funit,file=trim(fname),status='unknown')
     do itracer=1,ntracers
-       read(funit, "(a10,a,a51,a,a10,a,i1)",iostat=status) tracer_name,c1,tracer_long_name,c2,tracer_unit,c3,tracer_type
+       read(funit, "(a10,a,a40,a,a10,a,i1)",iostat=status) tracer_name,c1,tracer_long_name,c2,tracer_unit,c3,tracer_type
        constituent_name(itracer) = tracer_name
        if (tracer_type == 0) then
           is_water_species(itracer) = .true.

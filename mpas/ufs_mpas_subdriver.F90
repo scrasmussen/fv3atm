@@ -80,6 +80,15 @@ module ufs_mpas_subdriver
      integer, pointer :: blksz(:)     !< Block size for  data blocking (default blksz(1)=[nCells])
      integer          :: levs         !< number of vertical levels
 
+     ! Reference vertical pressure profile, passed to the optional ak/bk arguments of
+     ! GFS_typedefs.F90:control_initialize(). FV3 supplies its hybrid sigma-pressure
+     ! coefficients here; MPAS is not on that coordinate, so these carry a dycore-neutral
+     ! adapter instead: ak = reference interface pressure (Pa), bk = 0, which makes
+     ! cires_ugwpv1_module.F90:252 evaluate pmb(k) = ak(k). Ordered surface -> TOA to match
+     ! the bottom-up MPAS convention. Dimensioned levs+1; only 1:levs is read by UGWPv1.
+     real(rkind), pointer :: ak(:) => null()  !< reference interface pressure (Pa)
+     real(rkind), pointer :: bk(:) => null()  !< sigma coefficient; zero for MPAS
+
      !
      integer          :: iau_offset   !< iau running window length
      logical          :: restart      !< flag whether this is a coldstart (.false.) or a warmstart/restart (.true.)

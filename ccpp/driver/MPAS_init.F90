@@ -60,7 +60,8 @@ contains
          real(Init_parm%dt_phys, kind_phys), Init_parm%iau_offset, Init_parm%bdat,           &
          Init_parm%cdat, Init_parm%nwat, Init_parm%tracer_names, Init_parm%tracer_types,     &
          Init_parm%input_nml_file, Init_parm%blksz, Init_parm%restart, Init_parm%mpi_comm,   &
-         Init_parm%fcst_ntasks, nthrds)
+         Init_parm%fcst_ntasks, nthrds,                                                      &
+         ak=real(Init_parm%ak, kind_phys), bk=real(Init_parm%bk, kind_phys))
 
     ! Allocate data containers for physics.
     call Grid%create(Model)
